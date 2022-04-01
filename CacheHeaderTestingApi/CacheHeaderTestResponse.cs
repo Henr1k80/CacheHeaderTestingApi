@@ -10,4 +10,6 @@ public record CacheHeaderTestResponse
     public ushort SMaxAge  { get; init; }
     public ushort StaleWhileRevalidate  { get; init; }
     public ushort StaleWhileError  { get; init; }
+    public string ETag { get; init; }
+    public string LastModified { get; init; }
 }

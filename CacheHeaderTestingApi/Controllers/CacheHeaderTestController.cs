@@ -13,7 +13,7 @@ public class CacheHeaderTestController : ControllerBase
     private const int MaxETagLength = 500;
 
     [HttpGet]
-    public async Task<ActionResult<CacheHeaderTestResponse>> Get(ushort okResponseTimeMs = 150,
+    public async Task<ActionResult<CacheHeaderTestResponse>> Get(ushort okResponseTimeMs = 200,
         ushort notModifiedResponseTimeMs = 50,
         ushort maxAge = 180,
         ushort sMaxAge = 120,
@@ -48,6 +48,48 @@ public class CacheHeaderTestController : ControllerBase
             SMaxAge = sMaxAge,
             StaleWhileError = staleWhileError,
             StaleWhileRevalidate = staleWhileRevalidate,
+            ETag = eTag,
+            ServerTimeTaken = stopWatch.Elapsed,
+        };
+    }
+    
+    [HttpGet("LastModified")]
+    public async Task<ActionResult<CacheHeaderTestResponse>> GetWithLastModified(ushort okResponseTimeMs = 200,
+        ushort notModifiedResponseTimeMs = 50,
+        ushort maxAge = 180,
+        ushort sMaxAge = 120,
+        ushort staleWhileRevalidate = 60,
+        ushort staleWhileError = 300,
+        string lastModified = "Fri, 1 Apr 2022 16:52:15 GMT")
+    {
+        var stopWatch = Stopwatch.StartNew();
+        if (lastModified.Length > MaxETagLength)
+            return BadRequest($"Max lastModified length is {MaxETagLength}");
+
+        if (Request.Headers.IfModifiedSince == lastModified)
+        {
+            if (notModifiedResponseTimeMs > MaxDelayInMs)
+                return BadRequest($"Max delay in ms is {MaxDelayInMs}");
+            var timeToDelay304 = TimeSpan.FromMilliseconds(notModifiedResponseTimeMs) - stopWatch.Elapsed;
+            await Task.Delay(timeToDelay304).ConfigureAwait(false);
+            Response.Headers[nameof(CacheHeaderTestResponse.ServerTimeTaken)] = stopWatch.Elapsed.ToString();
+            return NotModifiedStatusCodeResult;
+        }
+
+        if (okResponseTimeMs > MaxDelayInMs)
+            return BadRequest($"Max delay in ms is {MaxDelayInMs}");
+        Response.Headers.LastModified = lastModified;
+        Response.Headers.CacheControl =
+            $"public, max-age={maxAge}, s-maxage={sMaxAge}, stale-while-revalidate={staleWhileRevalidate}, stale-while-error={staleWhileError}";
+        var timeToDelay = TimeSpan.FromMilliseconds(okResponseTimeMs) - stopWatch.Elapsed;
+        await Task.Delay(timeToDelay).ConfigureAwait(false);
+        return new CacheHeaderTestResponse
+        {
+            MaxAge = maxAge,
+            SMaxAge = sMaxAge,
+            StaleWhileError = staleWhileError,
+            StaleWhileRevalidate = staleWhileRevalidate,
+            LastModified = lastModified,
             ServerTimeTaken = stopWatch.Elapsed,
         };
     }
